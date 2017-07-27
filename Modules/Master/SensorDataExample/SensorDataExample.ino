@@ -1,5 +1,5 @@
 
-    int  activeSensors[0,0,0,0,0,0,0]; // bool 0 or 1 for each sensor: palse, chairPalse, alcohol, gearRotation, gesture, buttons, audio
+    int  activeSensors[] = {0,0,0,0,0,0,0}; // bool 0 or 1 for each sensor: palse, chairPalse, alcohol, gearRotation, gesture, buttons, audio
   // Petal LED counts
     unsigned int petalLevel1[] = {150, 152, 149, 153, 143, 154}; // this will change as we calabrate eacah petal, one value for each of the 6 petals per level
     unsigned int petalLevel2[] = {150, 152, 149, 153, 143, 154};
@@ -50,7 +50,7 @@ void setup() {
 }
 
 void loop() {
-	if (availableSensorData(&activeSensors)) {
+	if (availableSensorData(activeSensors)) {
 		// do something
 
 		// Each sesnsor has a active variable that shoud be double checked before using values just in case the availableSensorData function was wrong.
@@ -58,7 +58,7 @@ void loop() {
 	}
 }
 
-bool availableSensorData(int *fActiveSensors) {
+bool availableSensorData(int fActiveSensors[]) {
 	// function will look to see if there is available sensor data. If there is, it will 
 	// list the active sensors in the activeSensors array and return true. Otherwise it'll return false.
   return false;

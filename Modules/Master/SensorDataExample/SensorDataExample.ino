@@ -1,12 +1,12 @@
 
-  char  activeSensors;
+    int  activeSensors[0,0,0,0,0,0,0]; // bool 0 or 1 for each sensor: palse, chairPalse, alcohol, gearRotation, gesture, buttons, audio
   // Petal LED counts
-    unsigned int petalLevel1 = [150, 152, 149, 153, 143, 154]; // this will change as we calabrate eacah petal, one value for each of the 6 petals per level
-    unsigned int petalLevel2 = [150, 152, 149, 153, 143, 154];
-    unsigned int petalLevel3 = [150, 152, 149, 153, 143, 154];
+    unsigned int petalLevel1[] = {150, 152, 149, 153, 143, 154}; // this will change as we calabrate eacah petal, one value for each of the 6 petals per level
+    unsigned int petalLevel2[] = {150, 152, 149, 153, 143, 154};
+    unsigned int petalLevel3[] = {150, 152, 149, 153, 143, 154};
 
   // Arm LED counts
-    unsigned int armLEDCounts = [150, 152, 149, 153, 143, 154];
+    unsigned int armLEDCounts[] = {150, 152, 149, 153, 143, 154};
 
   // Sensors
     // Palse
@@ -43,7 +43,7 @@
     // Audio
     bool audioActive;
     unsigned int micValve; // Between 0 and 1023
-    int frequencyValues = [345,1023,138,0,98,101,478]; // 7 Channels each between 0 and 1023
+    int frequencyValues[] = {345,1023,138,0,98,101,478}; // 7 Channels each between 0 and 1023
 
 void setup() {
  
@@ -58,7 +58,7 @@ void loop() {
 	}
 }
 
-bool availableSensorData(char *fActiveSensors) {
+bool availableSensorData(int *fActiveSensors) {
 	// function will look to see if there is available sensor data. If there is, it will 
 	// list the active sensors in the activeSensors array and return true. Otherwise it'll return false.
   return false;

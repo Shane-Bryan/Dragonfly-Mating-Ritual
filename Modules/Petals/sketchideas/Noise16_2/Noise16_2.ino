@@ -15,15 +15,27 @@
 #endif
 
 // Fixed definitions cannot change on the fly.
-#define LED_DT 3                                             // Data pin to connect to the strip.
-#define LED_CK 8                                             // Clock pin for WS2801 or APA102.
+
+const int  PETAL_RING_0_CLOCK_PIN = 2;
+const int  PETAL_RING_0_DATA_PIN = 3;
+const int  PETAL_RING_1_CLOCK_PIN = 4;
+const int  PETAL_RING_1_DATA_PIN = 5;
+const int  PETAL_RING_2_CLOCK_PIN = 6;
+const int  PETAL_RING_2_DATA_PIN = 7;
+
+const int PETALS_PER_ROW = 6;
+const int SPARS_PER_ROW = 6;
+
+const int NUM_LEDS_PETAL_RING_0 = 900;
+const int NUM_LEDS_PETAL_RING_1 = 900;
+const int NUM_LEDS_PETAL_RING_2 = 900;
 #define COLOR_ORDER BGR                                       // It's GRB for WS2812 and BGR for APA102.
 #define LED_TYPE APA102                                       // Using APA102, WS2812, WS2801. Don't forget to modify LEDS.addLeds to suit.
-#define NUM_LEDS 150                                           // Number of LED's.
+#define TOTAL_LEDS 2700                                          // Number of LED's.
 
 uint8_t max_bright = 128;
 
-CRGB leds[NUM_LEDS];
+CRGBArray<TOTAL_LEDS> leds; // The master array of all LEDs
 
 CRGBPalette16 currentPalette;
 CRGBPalette16 targetPalette;
@@ -37,9 +49,12 @@ void setup() {
 
   Serial.begin(57600);                                        // Initialize serial port for debugging.
   delay(1000);                                                // Soft startup to ease the flow of electrons.
- 
-  LEDS.addLeds<LED_TYPE, LED_DT, LED_CK, COLOR_ORDER>(leds, NUM_LEDS);  // Use this for WS2801 or APA102
-//  LEDS.addLeds<LED_TYPE, LED_DT, COLOR_ORDER>(leds, NUM_LEDS);  // Use this for WS2812
+   
+  // tell FastLED about the LED strip configuration
+  // Sigh.  So hacky to specify ranges this way, but it's quick.
+  FastLED.addLeds<LED_TYPE,PETAL_RING_0_DATA_PIN, PETAL_RING_0_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, 0, NUM_LEDS_PETAL_RING_0).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE,PETAL_RING_1_DATA_PIN, PETAL_RING_1_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0, NUM_LEDS_PETAL_RING_1).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE,PETAL_RING_2_DATA_PIN, PETAL_RING_2_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0 + NUM_LEDS_PETAL_RING_1, NUM_LEDS_PETAL_RING_2).setCorrection( TypicalLEDStrip );
 
   currentPalette = PartyColors_p;
   currentBlending = LINEARBLEND;  
@@ -74,7 +89,7 @@ void noise16_2() {                                            // just moving alo
 
   uint8_t scale = 1000;                                       // the "zoom factor" for the noise
 
-  for (uint16_t i = 0; i < NUM_LEDS; i++) {
+  for (uint16_t i = 0; i < TOTAL_LEDS; i++) {
 
     uint16_t shift_x = millis() / 10;                         // x as a function of time
     uint16_t shift_y = 0;

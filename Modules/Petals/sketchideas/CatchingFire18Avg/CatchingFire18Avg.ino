@@ -4,14 +4,30 @@
 #define CLK_PIN     24
 #define LED_TYPE    DOTSTAR
 #define COLOR_ORDER BGR
-#define NUM_LEDS    300
+
+const int  PETAL_RING_0_CLOCK_PIN = 2;
+const int  PETAL_RING_0_DATA_PIN = 3;
+const int  PETAL_RING_1_CLOCK_PIN = 4;
+const int  PETAL_RING_1_DATA_PIN = 5;
+const int  PETAL_RING_2_CLOCK_PIN = 6;
+const int  PETAL_RING_2_DATA_PIN = 7;
+
+const int PETALS_PER_ROW = 6;
+const int SPARS_PER_ROW = 6;
+
+const int NUM_LEDS_PETAL_RING_0 = 900;
+const int NUM_LEDS_PETAL_RING_1 = 900;
+const int NUM_LEDS_PETAL_RING_2 = 900;
+
+#define TOTAL_LEDS    2700
+#define AVG_LEDS_PETAL 150
 
 #define BRIGHTNESS  255
 #define FRAMES_PER_SECOND 60
 
 bool gReverseDirection = false;
 
-CRGBArray<NUM_LEDS> leds;
+CRGBArray<TOTAL_LEDS> leds;
 
 // Fire2012 with programmable Color Palette
 //
@@ -65,8 +81,12 @@ int sparking = INITIAL_SPARKING;
 
 void setup() {
   delay(3000); // sanity delay
-  FastLED.addLeds<LED_TYPE,DATA_PIN,CLK_PIN,COLOR_ORDER,DATA_RATE_KHZ(1846) >(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  //FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  // tell FastLED about the LED strip configuration
+  // Sigh.  So hacky to specify ranges this way, but it's quick.
+  FastLED.addLeds<LED_TYPE,PETAL_RING_0_DATA_PIN, PETAL_RING_0_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, 0, NUM_LEDS_PETAL_RING_0).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE,PETAL_RING_1_DATA_PIN, PETAL_RING_1_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0, NUM_LEDS_PETAL_RING_1).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE,PETAL_RING_2_DATA_PIN, PETAL_RING_2_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0 + NUM_LEDS_PETAL_RING_1, NUM_LEDS_PETAL_RING_2).setCorrection( TypicalLEDStrip );
+
   FastLED.setBrightness( BRIGHTNESS );
 
   // This first palette is the basic 'black body radiation' colors,
@@ -133,7 +153,12 @@ void loop()
   Fire2012WithPalette(); // run simulation frame, using palette colors
   
   // mirror and blur the other side
-  leds(NUM_LEDS/2, NUM_LEDS-1) = leds(NUM_LEDS/2-1,0);
+  leds(AVG_LEDS_PETAL/2, AVG_LEDS_PETAL-1) = leds(AVG_LEDS_PETAL/2-1,0);
+
+  // mirror on all 18 petals
+  for (int i = 1; i < 18; i++) {
+    leds( i * AVG_LEDS_PETAL, ((i + 1) *AVG_LEDS_PETAL) -1) = leds( (i -1) * AVG_LEDS_PETAL, (i * AVG_LEDS_PETAL) -1 );
+  }
   
   FastLED.show(); // display this frame
   FastLED.delay(1000 / FRAMES_PER_SECOND);
@@ -153,15 +178,15 @@ void incrSparking() {
 }
 
 // Array of temperature readings at each simulation cell
-static byte heat[NUM_LEDS/2];
+static byte heat[AVG_LEDS_PETAL/2];
 
 void Fire2012WithPalette()
 {
-   int numLeds = NUM_LEDS/2;  // we're going to mirror this from either end symmetrically
+   int numLeds = AVG_LEDS_PETAL/2;  // we're going to mirror this from either end symmetrically
 
   // Step 1.  Cool down every cell a little
     for( int i = 0; i < numLeds; i++) {
-      heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / NUM_LEDS) + 2));
+      heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / AVG_LEDS_PETAL) + 2));
     }
   
     // Step 2.  Heat from each cell drifts 'up' and diffuses a little

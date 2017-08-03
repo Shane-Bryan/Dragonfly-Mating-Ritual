@@ -1,16 +1,14 @@
 #include <FastLED.h>
 
-#define DATA_PIN    25
-#define CLK_PIN     24
 #define LED_TYPE    DOTSTAR
 #define COLOR_ORDER BGR
 
-const int  PETAL_RING_0_CLOCK_PIN = 2;
-const int  PETAL_RING_0_DATA_PIN = 3;
-const int  PETAL_RING_1_CLOCK_PIN = 4;
-const int  PETAL_RING_1_DATA_PIN = 5;
-const int  PETAL_RING_2_CLOCK_PIN = 6;
-const int  PETAL_RING_2_DATA_PIN = 7;
+const int  PETAL_RING_0_CLOCK_PIN = 3;
+const int  PETAL_RING_0_DATA_PIN = 2;
+const int  PETAL_RING_1_CLOCK_PIN = 5;
+const int  PETAL_RING_1_DATA_PIN = 4;
+const int  PETAL_RING_2_CLOCK_PIN = 7;
+const int  PETAL_RING_2_DATA_PIN = 6;
 
 const int PETALS_PER_ROW = 6;
 const int SPARS_PER_ROW = 6;
@@ -22,8 +20,8 @@ const int NUM_LEDS_PETAL_RING_2 = 900;
 #define TOTAL_LEDS    2700
 #define AVG_LEDS_PETAL 150
 
-#define BRIGHTNESS  255
-#define FRAMES_PER_SECOND 60
+#define BRIGHTNESS  240
+#define FRAMES_PER_SECOND 300
 
 bool gReverseDirection = false;
 
@@ -58,6 +56,9 @@ CRGBArray<TOTAL_LEDS> leds;
 
 CRGBPalette16 gPal;
 
+CRGBPalette16 gPalHeat;
+CRGBPalette16 gPalBlue;
+
 //
 // There are two main parameters you can play with to control the look and
 // feel of your fire: COOLING (used in step 1 above), and SPARKING (used
@@ -68,12 +69,14 @@ CRGBPalette16 gPal;
 // Default 55, suggested range 20-100 
 #define INITIAL_COOLING  75
 #define MIN_COOLING  40
+#define MAX_COOLING  120
 
 // SPARKING: What chance (out of 255) is there that a new spark will be lit?
 // Higher chance = more roaring fire.  Lower chance = more flickery fire.
 // Default 120, suggested range 50-200.
 #define INITIAL_SPARKING 10
 #define MAX_SPARKING 140
+#define MIN_SPARKING 30
 
 
 int cooling = INITIAL_COOLING;
@@ -98,10 +101,14 @@ void setup() {
   //  gPal = CRGBPalette16( CRGB::Black, CRGB::Red, CRGB::Yellow, CRGB::White);
   
   // Second, this palette is like the heat colors, but blue/aqua instead of red/yellow
-  //   gPal = CRGBPalette16( CRGB::Black, CRGB::Blue, CRGB::Aqua,  CRGB::White);
+  gPalHeat = HeatColors_p;
+  gPalBlue = CRGBPalette16( CRGB::Black, CRGB::Purple, CRGB::Aqua,  CRGB::White);
   
   // Third, here's a simpler, three-step gradient, from black to red to white
   //   gPal = CRGBPalette16( CRGB::Black, CRGB::Red, CRGB::White);
+  
+  fill_solid(leds, TOTAL_LEDS, CRGB::Black);                    // Just to be sure, let's really make it BLACK.
+  FastLED.show();                         // Power managed display
 
 }
 
@@ -147,8 +154,19 @@ void loop()
   //   CRGB lightcolor = CHSV(hue,128,255); // half 'whitened', full brightness
   //   gPal = CRGBPalette16( CRGB::Black, darkcolor, lightcolor, CRGB::White);
 
-  EVERY_N_SECONDS(5) { decrCooling(); } 
-  EVERY_N_SECONDS(2) { incrSparking(); } 
+  boolean cooldown = false;
+  EVERY_N_SECONDS(5) { adjCooling(cooldown); } 
+  EVERY_N_SECONDS(2) { adjSparking(cooldown); } 
+
+  EVERY_N_SECONDS(60) { cooldown = !cooldown; }
+  EVERY_N_SECONDS(120) { 
+    if (gPal == gPalHeat) {
+      gPal = gPalBlue;
+    } else {
+      gPal = gPalHeat;
+    }
+  
+  }
   
   Fire2012WithPalette(); // run simulation frame, using palette colors
   
@@ -164,16 +182,29 @@ void loop()
   FastLED.delay(1000 / FRAMES_PER_SECOND);
 }
 
-void decrCooling() {
-  cooling -= random8(5);
+void adjCooling(boolean cooldown) {
+  if (cooldown) {
+    cooling -= random8(5);
+  } else {
+    cooling += random8(8);
+  }
   if (cooling < MIN_COOLING) {
     cooling = MIN_COOLING;
+  } else if (cooling > MAX_COOLING) {
+    cooling = MAX_COOLING;
   }
 }
-void incrSparking() {
-  sparking += random8(5);
+
+void adjSparking(boolean cooldown) {
+  if (cooldown) {
+    sparking += random8(5);
+  } else {
+    sparking -= random8(8);
+  }
   if (sparking > MAX_SPARKING) {
     sparking = MAX_SPARKING;
+  } else if (sparking < MIN_SPARKING) {
+    sparking = MIN_SPARKING;
   }
 }
 

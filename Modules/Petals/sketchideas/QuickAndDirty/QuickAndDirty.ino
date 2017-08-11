@@ -172,6 +172,10 @@ void Fire2012WithPalette()
     }
 }
 
+
+//
+// Utilities to copy or mirror petals and rings
+//
 void copyPetalToPetal( int i ) {
   leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) -1) = leds( (i -1) * AVG_LEDS_PER_PETAL, (i * AVG_LEDS_PER_PETAL) -1 );
 }
@@ -255,15 +259,43 @@ void addGlitter( fract8 chanceOfGlitter)
   }
 }
 
-// List of patterns to cycle through.  Each is defined as a separate function below.
+// List of patterns to cycle through.  Each is defined as a separate function below. They can appear more than once, which gives us a really
+// hacky way of making some run longer than others.
+//
+// TODO: tweak or remove the ones we think suck :)
+//
 typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = { petalSizer, rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm, beNoisy, christmasSparkles, christmasSparklesRG, christmasSparkles, christmasSparklesBP, fire18, fire18, fire18, fire18 };
+SimplePatternList gPatterns = { 
+  petalSizer, 
+  rainbow, 
+  rainbowWithGlitter, 
+  confetti, 
+  sinelon, 
+  juggle, 
+  bpm, 
+  beNoisy, 
+  christmasSparkles, 
+  christmasSparklesRG, 
+  christmasSparkles, 
+  christmasSparklesBP, 
+  lightning,
+  lightning,
+  fire18, 
+  fire18, 
+  fire18, 
+  fire18 };
 
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
-  
+
+
+//
+// Main control loop
+//
 void loop()
 {
+  // TODO: grab control data here, what will we really have?
+  
   // Call the current pattern function once, updating the 'leds' array
   gPatterns[gCurrentPatternNumber]();
 
@@ -272,7 +304,7 @@ void loop()
   // insert a delay to keep the framerate modest
   FastLED.delay(1000/FRAMES_PER_SECOND); 
 
-  // do some periodic updates
+  // do some periodic updates  TODO: maybe we should move this into the patterns that care?
   EVERY_N_MILLISECONDS( 2000 ) { gHue++; } // slowly cycle the "base color" through the rainbow
   EVERY_N_SECONDS( 15 ) { nextPattern(); } // change patterns periodically
 }
@@ -406,6 +438,7 @@ void fire18()
 
   copyPetalToAll18();
 }
+
 void christmasSparkles() {
   //"Background" color for non-sparkling pixels.
   CRGB sparkleBgColor = CHSV(50, 30, 40);  // dim white
@@ -548,3 +581,38 @@ void christmasSparklesBP() {  // Blues and Purple only
   // Mirror to all
   copyPetalToAll18();
 }//end christmasSparklesBP
+
+
+uint8_t lightningFrequency = 50;                                       // controls the interval between strikes
+uint8_t flashes = 8;                                          //the upper limit of flashes per strike
+unsigned int dimmer = 1;
+
+uint8_t lightningStart;                                             // Starting location of a flash
+uint8_t lightningLen;                                               // Length of a flash
+
+void lightning() {
+  
+  lightningStart = random8(AVG_LEDS_PER_RING);                               // Determine starting location of flash
+  lightningLen = random8(AVG_LEDS_PER_RING-lightningStart);                        // Determine length of flash (not to go beyond NUM_LEDS-1)
+  
+  for (int flashCounter = 0; flashCounter < random8(3,flashes); flashCounter++) {
+    if(flashCounter == 0) dimmer = 5;                         // the brightness of the leader is scaled down by a factor of 5
+    else dimmer = random8(1,3);                               // return strokes are brighter than the leader
+    
+    fill_solid(leds+lightningStart,lightningLen,CHSV(255, 0, 255/dimmer));
+    mirrorImageRingToAll3();
+    FastLED.show();                       // Show a section of LED's
+    delay(random8(4,10));                                     // each flash only lasts 4-10 milliseconds
+    fill_solid(leds+lightningStart,lightningLen,CHSV(255,0,0));           // Clear the section of LED's
+    mirrorImageRingToAll3();
+    FastLED.show();
+    
+    if (flashCounter == 0) delay (150);                       // longer delay until next flash after the leader
+    
+    delay(50+random8(100));                                   // shorter delay between strokes  
+  } // for()
+  
+  delay(random8(lightningFrequency)*100);                              // delay between strikes
+  
+  
+} // lightning()

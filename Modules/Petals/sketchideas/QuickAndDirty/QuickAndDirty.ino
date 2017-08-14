@@ -2,11 +2,11 @@
 
 FASTLED_USING_NAMESPACE
 
-// FastLED "100-lines-of-code" demo reel, showing just a few 
-// of the kinds of animation patterns you can quickly and easily 
-// compose using FastLED.  
+// FastLED "100-lines-of-code" demo reel, showing just a few
+// of the kinds of animation patterns you can quickly and easily
+// compose using FastLED.
 //
-// This example also shows one easy way to define multiple 
+// This example also shows one easy way to define multiple
 // animations patterns and have them automatically rotate.
 //
 // -Mark Kriegsman, December 2014
@@ -16,7 +16,9 @@ FASTLED_USING_NAMESPACE
 #endif
 
 //TODO: Move to struct, and use real pin numbers.
-/*const int  SPAR_1_DATA_PIN = 25;
+const int  SPAR_0_DATA_PIN = 4; //15;
+const int  SPAR_0_CLOCK_PIN = 5; // 14;
+const int  SPAR_1_DATA_PIN = 25;
 const int  SPAR_1_CLOCK_PIN = 24;
 const int  SPAR_2_DATA_PIN = 23;
 const int  SPAR_2_CLOCK_PIN = 22;
@@ -26,28 +28,30 @@ const int  SPAR_4_DATA_PIN = 19;
 const int  SPAR_4_CLOCK_PIN = 18;
 const int  SPAR_5_DATA_PIN = 17;
 const int  SPAR_5_CLOCK_PIN = 16;
-const int  SPAR_6_DATA_PIN = 15;
-const int  SPAR_6_CLOCK_PIN = 14;*/
 
-const int  PETAL_RING_0_CLOCK_PIN = 2;
-const int  PETAL_RING_0_DATA_PIN = 3;
-const int  PETAL_RING_1_CLOCK_PIN = 4;
-const int  PETAL_RING_1_DATA_PIN = 5;
-const int  PETAL_RING_2_CLOCK_PIN = 6;
-const int  PETAL_RING_2_DATA_PIN = 7;
+
+const int  PETAL_RING_0_DATA_PIN = 2;
+const int  PETAL_RING_0_CLOCK_PIN = 3;
+const int  PETAL_RING_1_DATA_PIN = 20; //4;
+const int  PETAL_RING_1_CLOCK_PIN = 21; //5;
+const int  PETAL_RING_2_DATA_PIN = 6;
+const int  PETAL_RING_2_CLOCK_PIN = 7;
+
+const int SPARS_PER_ROW = 6;
 
 const int PETALS_PER_ROW = 6;
-const int SPARS_PER_ROW = 6;
 
 const int NUM_LEDS_PETAL_RING_0 = 900;
 const int NUM_LEDS_PETAL_RING_1 = 900;
 const int NUM_LEDS_PETAL_RING_2 = 900;
 
+const int AVG_LEDS_PER_SPAR = 150;
 const int AVG_LEDS_PER_PETAL = 150;
 const int AVG_LEDS_PER_RING = 900;
 
-const int TOTAL_LEDS = 2700; // All petals and spars
-CRGBArray<TOTAL_LEDS> leds; // The master array of all LEDs
+const int TOTAL_LEDS = 2700; // All petals
+CRGBArray<TOTAL_LEDS> leds; // The master array of all petal LEDs
+CRGBArray<AVG_LEDS_PER_SPAR> sparLeds[SPARS_PER_ROW];
 
 #define LED_TYPE    DOTSTAR
 #define COLOR_ORDER BGR
@@ -59,10 +63,14 @@ CRGBArray<TOTAL_LEDS> leds; // The master array of all LEDs
 //
 // For "catching fire" pattern
 //
+bool gReverseDirection = false;
 CRGBPalette16 gPal;
 
 CRGBPalette16 gPalHeat;
 CRGBPalette16 gPalBlue;
+CRGBPalette16 gPalForest;
+CRGBPalette16 gPalRainbow;
+CRGBPalette16 gPalLava;
 
 #define INITIAL_COOLING  75
 #define MIN_COOLING  40
@@ -72,8 +80,19 @@ CRGBPalette16 gPalBlue;
 #define MAX_SPARKING 140
 #define MIN_SPARKING 30
 
+#define INITIAL_SPAR_SPARKING 40
+#define MAX_SPAR_SPARKING 180
+#define MIN_SPAR_SPARKING 40
+
+#define INITIAL_SPAR_COOLING  55
+#define MIN_SPAR_COOLING  30
+#define MAX_SPAR_COOLING  110
+
 int cooling = INITIAL_COOLING;
 int sparking = INITIAL_SPARKING;
+
+int sparCooling = INITIAL_SPAR_COOLING;
+int sparSparking = INITIAL_SPAR_SPARKING;
 
 
 //
@@ -91,85 +110,240 @@ uint16_t ledsData[AVG_LEDS_PER_RING][4];  // array to store color data and an ex
 uint16_t pick;  // stores a temporary pixel number
 
 
+//
+// Sensor Data
+//
+
+// Audio
+bool audioActive = true;
+unsigned int micValue; // Between 0 and 1023
+int frequencyValues[] = {345, 1023, 138, 0, 98, 101, 478}; // 7 Channels each between 0 and 1023
+
 
 void setup() {
   delay(3000); // 3 second delay for recovery
-  
+
   // tell FastLED about the LED strip configuration
   // Sigh.  So hacky to specify ranges this way, but it's quick.
-  FastLED.addLeds<LED_TYPE,PETAL_RING_0_DATA_PIN, PETAL_RING_0_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, 0, NUM_LEDS_PETAL_RING_0).setCorrection( TypicalLEDStrip );
-  FastLED.addLeds<LED_TYPE,PETAL_RING_1_DATA_PIN, PETAL_RING_1_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0, NUM_LEDS_PETAL_RING_1).setCorrection( TypicalLEDStrip );
-  FastLED.addLeds<LED_TYPE,PETAL_RING_2_DATA_PIN, PETAL_RING_2_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0 + NUM_LEDS_PETAL_RING_1, NUM_LEDS_PETAL_RING_2).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, PETAL_RING_0_DATA_PIN, PETAL_RING_0_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, 0, NUM_LEDS_PETAL_RING_0).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, PETAL_RING_1_DATA_PIN, PETAL_RING_1_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0, NUM_LEDS_PETAL_RING_1).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, PETAL_RING_2_DATA_PIN, PETAL_RING_2_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(leds, NUM_LEDS_PETAL_RING_0 + NUM_LEDS_PETAL_RING_1, NUM_LEDS_PETAL_RING_2).setCorrection( TypicalLEDStrip );
+
+  FastLED.addLeds<LED_TYPE, SPAR_0_DATA_PIN, SPAR_0_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[0], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, SPAR_1_DATA_PIN, SPAR_1_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[1], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, SPAR_2_DATA_PIN, SPAR_2_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[2], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, SPAR_3_DATA_PIN, SPAR_3_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[3], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, SPAR_4_DATA_PIN, SPAR_4_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[4], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, SPAR_5_DATA_PIN, SPAR_5_CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(1)>(sparLeds[5], 0, AVG_LEDS_PER_SPAR).setCorrection( TypicalLEDStrip );
+
 
   // set master brightness control
   FastLED.setBrightness(BRIGHTNESS);
 
   // for the noise routine
   currentNoisePalette = PartyColors_p;
-  currentNoiseBlending = LINEARBLEND;  
+  currentNoiseBlending = LINEARBLEND;
+
+  // For fire
+
+  // This first palette is the basic 'black body radiation' colors,
+  // which run from black to red to bright yellow to white.
+ // gPalHeat = HeatColors_p;
+
+  // These are other ways to set up the color palette for the 'fire'.
+  // First, a gradient from black to red to yellow to white -- similar to HeatColors_p
+  gPalHeat = CRGBPalette16( CRGB::Black, CRGB::Red, CRGB::Yellow, CRGB::White);
+
+  // Second, this palette is like the heat colors, but blue/aqua instead of red/yellow
+  gPal = gPalHeat;
+  gPalBlue =   CRGBPalette16( CRGB::Black, CRGB::Purple, CRGB::Aqua,  CRGB::White);
+
+  const TProgmemRGBPalette16 MyForest_p FL_PROGMEM = {
+    CRGB::Black, 
+    CRGB::DarkGreen, 
+    CRGB::DarkGreen, 
+    CRGB::DarkOliveGreen,
+    
+    CRGB::Green,
+    CRGB::ForestGreen,
+    CRGB::OliveDrab,
+    CRGB::SeaGreen,
+    
+    CRGB::MediumAquamarine,
+    CRGB::MediumAquamarine,
+    CRGB::LawnGreen,
+    CRGB::LimeGreen,
+    
+    CRGB::YellowGreen,
+    CRGB::LightGreen,
+    CRGB::LightGreen,
+    CRGB::White };
+    
+  gPalForest = MyForest_p;
+    
+  //gPalForest = ForestColors_p;
+
+  gPalRainbow = RainbowColors_p;
+  
+  //gPalLava = LavaColors_p;
+  const TProgmemRGBPalette16 MyLava_p FL_PROGMEM = {
+    CRGB::Black,
+    CRGB::Black,
+    CRGB::Maroon,
+    CRGB::Maroon,
+
+    CRGB::DarkRed,
+    CRGB::DarkRed,
+    CRGB::DarkRed,
+    CRGB::Red,
+    
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Orange,
+    CRGB::Orange,
+
+    CRGB::Orange,
+    CRGB::Orange,
+    CRGB::White,
+    CRGB::White};
+
+  gPalLava = MyLava_p;
 }
 
+int normalizeFrequency150(int freqVal) {
+  // always have a minimum, so there's something on the arm
+  return (freqVal / 8) + 22;
+
+}
 
 void adjCooling(boolean cooldown) {
   if (cooldown) {
-    cooling -= random8(5);
+    int coolFactor = random8(5);
+    cooling -= coolFactor;
+    sparCooling -= (coolFactor + 2);
   } else {
-    cooling += random8(8);
+    int coolFactor = random8(8);
+    cooling += coolFactor;
+    sparCooling += (coolFactor +2);
   }
+  
   if (cooling < MIN_COOLING) {
     cooling = MIN_COOLING;
   } else if (cooling > MAX_COOLING) {
     cooling = MAX_COOLING;
   }
+
+  if (sparCooling < MIN_SPAR_COOLING) {
+    sparCooling = MIN_SPAR_COOLING;
+  } else if (sparCooling > MAX_SPAR_COOLING) {
+    sparCooling = MAX_SPAR_COOLING;
+  }
 }
 
 void adjSparking(boolean cooldown) {
   if (cooldown) {
-    sparking += random8(5);
+    int sparkFactor = random8(5);
+    sparking += sparkFactor;
+    sparSparking += sparkFactor;
   } else {
-    sparking -= random8(8);
+    int sparkFactor = random8(8);
+    sparking -= sparkFactor;
+    sparSparking -= sparkFactor;
   }
+  
   if (sparking > MAX_SPARKING) {
     sparking = MAX_SPARKING;
   } else if (sparking < MIN_SPARKING) {
     sparking = MIN_SPARKING;
   }
+  
+  if (sparSparking > MAX_SPAR_SPARKING) {
+    sparSparking = MAX_SPAR_SPARKING;
+  } else if (sparSparking < MIN_SPAR_SPARKING) {
+    sparSparking = MIN_SPAR_SPARKING;
+  }
 }
 
 // Array of temperature readings at each simulation cell
-static byte heat[AVG_LEDS_PER_PETAL/2];
+static byte heat[AVG_LEDS_PER_PETAL / 2];
+static byte sparheat[AVG_LEDS_PER_SPAR];
 
 void Fire2012WithPalette()
 {
-   int numLeds = AVG_LEDS_PER_PETAL/2;  // we're going to mirror this from either end symmetrically
+  int numLeds = AVG_LEDS_PER_PETAL / 2; // we're going to mirror this from either end symmetrically
 
   // Step 1.  Cool down every cell a little
-    for( int i = 0; i < numLeds; i++) {
-      heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / AVG_LEDS_PER_PETAL) + 2));
+  for ( int i = 0; i < numLeds; i++) {
+    heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / AVG_LEDS_PER_PETAL) + 2));
+  }
+
+  // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+  for ( int k = numLeds - 1; k >= 2; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+  }
+
+  // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+  if ( random8() < sparking ) {
+    int y = random8(7);
+    heat[y] = qadd8( heat[y], random8(160, 255) );
+  }
+
+  // Step 4.  Map from heat cells to LED colors
+  for ( int j = 0; j < numLeds; j++) {
+    // Scale the heat value from 0-255 down to 0-240
+    // for best results with color palettes.
+    byte colorindex = scale8( heat[j], 240);
+    CRGB color = ColorFromPalette( gPal, colorindex);
+    int pixelnumber;
+    if ( gReverseDirection ) {
+      pixelnumber = (numLeds - 1) - j;
+    } else {
+      pixelnumber = j;
     }
-  
+
+    leds[pixelnumber] = color;
+    //leds[NUM_LEDS -1 - pixelnumber] = color;
+  }
+}
+
+
+void Fire2012WithPaletteForSpars(int sparId)
+{
+
+    int numLeds = AVG_LEDS_PER_SPAR;
+
+    // Step 1.  Cool down every cell a little
+    for( int i = 0; i < numLeds; i++) {
+     sparheat[i] = qsub8( sparheat[i],  random8(0, ((sparCooling * 10) / AVG_LEDS_PER_SPAR) + 2));
+    }
+
     // Step 2.  Heat from each cell drifts 'up' and diffuses a little
     for( int k= numLeds - 1; k >= 2; k--) {
-      heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+     sparheat[k] = (sparheat[k - 1] + sparheat[k - 2] + sparheat[k - 2] ) / 3;
     }
-    
+
     // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
-    if( random8() < sparking ) {
-      int y = random8(7);
-      heat[y] = qadd8( heat[y], random8(160,255) );
+    if( random8() < sparSparking ) {
+     int y = random8(7);
+     sparheat[y] = qadd8( sparheat[y], random8(160,255) );
     }
 
     // Step 4.  Map from heat cells to LED colors
     for( int j = 0; j < numLeds; j++) {
-      // Scale the heat value from 0-255 down to 0-240
-      // for best results with color palettes.
-      byte colorindex = scale8( heat[j], 240);
-      CRGB color = ColorFromPalette( gPal, colorindex);
-      int pixelnumber = (numLeds-1) - j;
-      
-      leds[pixelnumber] = color;
-      //leds[NUM_LEDS -1 - pixelnumber] = color;    
+     // Scale the heat value from 0-255 down to 0-240
+     // for best results with color palettes.
+     byte colorindex = scale8( sparheat[j], 240);
+     CRGB color = ColorFromPalette( gPal, colorindex);
+     int pixelnumber;
+     if( gReverseDirection ) {
+       pixelnumber = (numLeds-1) - j;
+     } else {
+       pixelnumber = j;
+     }
+
+     sparLeds[sparId][pixelnumber] = color;
     }
+  
 }
 
 
@@ -177,11 +351,11 @@ void Fire2012WithPalette()
 // Utilities to copy or mirror petals and rings
 //
 void copyPetalToPetal( int i ) {
-  leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) -1) = leds( (i -1) * AVG_LEDS_PER_PETAL, (i * AVG_LEDS_PER_PETAL) -1 );
+  leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) - 1) = leds( (i - 1) * AVG_LEDS_PER_PETAL, (i * AVG_LEDS_PER_PETAL) - 1 );
 }
 
 void mirrorPetalToPetal( int i ) {
-  leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) -1) = leds( (i * AVG_LEDS_PER_PETAL) -1, (i -1) * AVG_LEDS_PER_PETAL);
+  leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) - 1) = leds( (i * AVG_LEDS_PER_PETAL) - 1, (i - 1) * AVG_LEDS_PER_PETAL);
 }
 
 
@@ -204,11 +378,11 @@ void mirrorImagePetalToAll18() {
 }
 
 void copyRingToRing( int i ) {
-  leds( i * AVG_LEDS_PER_RING, ((i + 1) * AVG_LEDS_PER_RING) -1) = leds( (i -1) * AVG_LEDS_PER_RING, (i * AVG_LEDS_PER_RING) -1 );
+  leds( i * AVG_LEDS_PER_RING, ((i + 1) * AVG_LEDS_PER_RING) - 1) = leds( (i - 1) * AVG_LEDS_PER_RING, (i * AVG_LEDS_PER_RING) - 1 );
 }
 
 void mirrorRingToRing( int i ) {
-  leds( i * AVG_LEDS_PER_RING, ((i + 1) * AVG_LEDS_PER_RING) -1) = leds( (i * AVG_LEDS_PER_RING) -1, (i -1) * AVG_LEDS_PER_RING);
+  leds( i * AVG_LEDS_PER_RING, ((i + 1) * AVG_LEDS_PER_RING) - 1) = leds( (i * AVG_LEDS_PER_RING) - 1, (i - 1) * AVG_LEDS_PER_RING);
 }
 
 void copyRingToAll3() {
@@ -229,6 +403,13 @@ void mirrorImageRingToAll3() {
   }
 }
 
+void copyToAllSpars() {
+  for (int i = 1; i < SPARS_PER_ROW; i++) {
+    sparLeds[i] = sparLeds[0];
+  }
+}
+
+
 void noise16_2() {                                            // just moving along one axis = "lavalamp effect"
 
   uint8_t scale = 1000;                                       // the "zoom factor" for the noise
@@ -241,10 +422,10 @@ void noise16_2() {                                            // just moving alo
     uint32_t real_x = (i + shift_x) * scale;                  // calculate the coordinates within the noise field
     uint32_t real_y = (i + shift_y) * scale;                  // based on the precalculated positions
     uint32_t real_z = 4223;
-    
+
     uint8_t noise = inoise16(real_x, real_y, real_z) >> 8;    // get the noise data and scale it down
 
-    uint8_t index = sin8(noise*3);                            // map led color based on noise data
+    uint8_t index = sin8(noise * 3);                          // map led color based on noise data
     uint8_t bri   = noise;
 
     leds[i] = ColorFromPalette(currentNoisePalette, index, bri, LINEARBLEND);   // With that value, look up the 8 bit colour palette value and assign it to the current LED.
@@ -252,41 +433,76 @@ void noise16_2() {                                            // just moving alo
   }
 }
 
-void addGlitter( fract8 chanceOfGlitter) 
+void addGlitter( fract8 chanceOfGlitter, int multiple)
 {
-  if( random8() < chanceOfGlitter) {
-    leds[ random16(AVG_LEDS_PER_PETAL) ] += CRGB::White;
+  if ( random8() < chanceOfGlitter) {
+    for (int i = 0; i < multiple; i++) {
+      leds[ random16(AVG_LEDS_PER_PETAL) ] += CRGB::White;
+    }
   }
 }
 
+
+// *************************
 // List of patterns to cycle through.  Each is defined as a separate function below. They can appear more than once, which gives us a really
 // hacky way of making some run longer than others.
 //
 // TODO: tweak or remove the ones we think suck :)
 //
 typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = { 
-  petalSizer, 
-  rainbow, 
-  rainbowWithGlitter, 
-  confetti, 
-  sinelon, 
-  juggle, 
-  bpm, 
-  beNoisy, 
-  christmasSparkles, 
-  christmasSparklesRG, 
-  christmasSparkles, 
-  christmasSparklesBP, 
-  lightning,
-  lightning,
-  fire18, 
-  fire18, 
-  fire18, 
-  fire18 };
+SimplePatternList gPatterns = {
+  fire18Heat,
+  fire18Lava,
+  bpmGlitter, // rocking rainbow ok for  bit, needs variation - audio?
+  fire18Blue,
+  fire18Forest,
+  bpm, // rocking rainbow ok for  bit, needs variation - audio?
+  rain18Rainbow,
+  beNoisy, // fast cycle rainbow, not bad, could be brighter
+  rain18Forest,
+  rain18Heat,
+  beNoisyGlitter, // fast cycle rainbow, not bad, could be brighter
+  rain18Lava,
+  rain18Blue,
+  //rainbow,
+  rainbowWithGlitter,
+  fire18Rainbow,
+  juggle, // multicolor sparkles,
+  
+};
+
 
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
+
+bool freqInc = true;
+void fakeAudioFrequencyChange() {
+  
+  int delta = random8(24);
+  
+  for (int i = 0; i < 7; i++) {
+    if (freqInc) { 
+      frequencyValues[i] += delta;
+      if (frequencyValues[i] > 1023) {
+        frequencyValues[i] = 1023;
+        freqInc = false;
+      } 
+    } else {
+      frequencyValues[i] -= delta;
+      if (frequencyValues[i] < 0) {
+        frequencyValues[i] = 0;
+        freqInc = true;
+      }    
+    }
+  }
+}
+
+
+const int SECONDS_PER_COOLDOWN_DELTA = 5;
+const int SECONDS_PER_SPARKING_DELTA = 2;
+const int SECONDS_HEAT_COOL_CYCLE = 60;
+  
+const int PATTERN_LENGTH_SECONDS = SECONDS_HEAT_COOL_CYCLE * 4 ;  // Best as an even mmultiple of SECONDS_HEAT_COOL_CYCLE for even fire
 
 
 //
@@ -294,19 +510,25 @@ uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 //
 void loop()
 {
-  // TODO: grab control data here, what will we really have?
-  
-  // Call the current pattern function once, updating the 'leds' array
+
+  // Call the current pattern function once, updating the 'leds' array.  May overwrite spars
   gPatterns[gCurrentPatternNumber]();
 
   // send the 'leds' array out to the actual LED strip
-  FastLED.show();  
-  // insert a delay to keep the framerate modest
-  FastLED.delay(1000/FRAMES_PER_SECOND); 
+  FastLED.show();
 
+  // make the audio freq seem to change
+  EVERY_N_MILLISECONDS( 40 ) {
+    fakeAudioFrequencyChange();
+  }
+  
   // do some periodic updates  TODO: maybe we should move this into the patterns that care?
-  EVERY_N_MILLISECONDS( 2000 ) { gHue++; } // slowly cycle the "base color" through the rainbow
-  EVERY_N_SECONDS( 15 ) { nextPattern(); } // change patterns periodically
+  EVERY_N_MILLISECONDS( 200 ) {
+    gHue++;  // slowly cycle the "base color" through the rainbow
+  }
+  EVERY_N_SECONDS( PATTERN_LENGTH_SECONDS ) {
+    nextPattern();  // change patterns periodically
+  }
 }
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -323,51 +545,65 @@ void nextPattern()
 
 void petalSizer()
 {
-   fill_solid(leds, TOTAL_LEDS, CRGB::Blue);    
-   for (int i = 0; i < TOTAL_LEDS; i += AVG_LEDS_PER_PETAL) {
+  fill_solid(leds, TOTAL_LEDS, CHSV( gHue , 200, 255));
+  for (int i = 0; i < TOTAL_LEDS; i += AVG_LEDS_PER_PETAL) {
     leds[i] = CRGB::Red;
-   }
+  }
 }
 
-void rainbow() 
+void rainbow()
+{
+  // FastLED's built-in rainbow generator
+  fill_rainbow( leds, AVG_LEDS_PER_RING, gHue, 7);
+
+  // Mirror to all
+  mirrorImageRingToAll3();
+  // default spars to audio
+  sparToAudio();
+
+}
+
+void rainbowWithGlitter()
 {
   // FastLED's built-in rainbow generator
   fill_rainbow( leds, AVG_LEDS_PER_PETAL, gHue, 7);
 
-  // Mirror to all
-  copyPetalToAll18();
-}
+  addGlitter(80, 3);
 
-void rainbowWithGlitter() 
-{
-  // FastLED's built-in rainbow generator
-  fill_rainbow( leds, AVG_LEDS_PER_PETAL, gHue, 7);
-  
-  addGlitter(80);
-  
   // Mirror to all
   copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
 }
 
 
-void confetti() 
+void confetti()
 {
   // random colored speckles that blink in and fade smoothly
   fadeToBlackBy( leds, AVG_LEDS_PER_PETAL, 10);
   int pos = random16(AVG_LEDS_PER_PETAL);
   leds[pos] += CHSV( gHue + random8(64), 200, 255);
+  leds[pos] += CHSV( gHue + random8(64), 200, 255);
+  leds[pos] += CHSV( gHue + random8(64), 200, 255);
   // Mirror to all
   copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
 }
 
 void sinelon()
 {
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy( leds, AVG_LEDS_PER_PETAL, 20);
-  int pos = beatsin16(13,0,AVG_LEDS_PER_PETAL);
+  int pos = beatsin16(13, 0, AVG_LEDS_PER_PETAL);
   leds[pos] += CHSV( gHue, 255, 192);
   // Mirror to all
   copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
 }
 
 void bpm()
@@ -376,23 +612,48 @@ void bpm()
   uint8_t BeatsPerMinute = 62;
   CRGBPalette16 palette = PartyColors_p;
   uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
-  for( int i = 0; i < AVG_LEDS_PER_PETAL; i++) { //9948
-    leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
+  for ( int i = 0; i < AVG_LEDS_PER_PETAL; i++) { //9948
+    leds[i] = ColorFromPalette(palette, gHue + (i * 2), beat - gHue + (i * 10));
   }
   // Mirror to all
   copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
+}
+
+void bpmGlitter()
+{
+  // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
+  uint8_t BeatsPerMinute = 62;
+  CRGBPalette16 palette = PartyColors_p;
+  uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
+  for ( int i = 0; i < AVG_LEDS_PER_PETAL; i++) { //9948
+    leds[i] = ColorFromPalette(palette, gHue + (i * 2), beat - gHue + (i * 10));
+  }
+  
+  addGlitter(80, 3);
+  
+  // Mirror to all
+  copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
 }
 
 void juggle() {
   // eight colored dots, weaving in and out of sync with each other
   fadeToBlackBy( leds, AVG_LEDS_PER_PETAL, 20);
   byte dothue = 0;
-  for( int i = 0; i < 8; i++) {
-    leds[beatsin16(i+7,0,AVG_LEDS_PER_PETAL)] |= CHSV(dothue, 200, 255);
+  for ( int i = 0; i < 8; i++) {
+    leds[beatsin16(i + 7, 0, AVG_LEDS_PER_PETAL)] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
   // Mirror to all
   copyPetalToAll18();
+  // default spars to audio
+  sparToAudio();
+
 }
 
 void beNoisy() {
@@ -402,217 +663,170 @@ void beNoisy() {
   }
 
   EVERY_N_SECONDS(5) {             // Change the target palette to a random one every 5 seconds.
-    targetNoisePalette = CRGBPalette16(CHSV(random8(), 255, random8(128,255)), CHSV(random8(), 255, random8(128,255)), CHSV(random8(), 192, random8(128,255)), CHSV(random8(), 255, random8(128,255)));
+    targetNoisePalette = CRGBPalette16(CHSV(random8(), 255, random8(128, 255)), CHSV(random8(), 255, random8(128, 255)), CHSV(random8(), 192, random8(128, 255)), CHSV(random8(), 255, random8(128, 255)));
   }
 
   noise16_2();
-  
+
   // Mirror to all
   copyRingToAll3();
- 
+
+  // default spars to audio
+  sparToAudio();
+
 }
 
-void fire18()
-{
-  // Add entropy to random number generator; we use a lot of it.
-  random16_add_entropy( random());
+void beNoisyGlitter() {
+  beNoisy();
+  addGlitter(80, 3);
+}
 
-  boolean cooldown = false;
-  EVERY_N_SECONDS(5) { adjCooling(cooldown); } 
-  EVERY_N_SECONDS(2) { adjSparking(cooldown); } 
 
-  EVERY_N_SECONDS(60) { cooldown = !cooldown; }
-  EVERY_N_SECONDS(120) { 
+
+void fire18Heat() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalHeat;
+  fire18();
+}
+
+void rain18Heat() {
+  gReverseDirection = true;
+  gPal = gPalHeat;
+  fire18();
+}
+
+void fire18Blue() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalBlue;
+  fire18();
+}
+
+void rain18Blue() {
+  gReverseDirection = true;
+  gPal = gPalBlue;
+  fire18();
+}
+
+void fire18Rainbow() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalRainbow;
+  fire18();
+}
+
+void rain18Rainbow() {
+  gReverseDirection = true;
+  gPal = gPalRainbow;
+  fire18();
+}
+
+void fire18Forest() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalForest;
+  fire18();
+}
+
+void rain18Forest() {
+  gReverseDirection = true;
+  gPal = gPalForest;
+  fire18();
+}
+
+
+void fire18Lava() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalLava;
+  fire18();
+}
+
+void rain18Lava() {
+  gReverseDirection = true;
+  gPal = gPalLava;
+  fire18();
+}
+
+
+void fire18Change() {
+  gReverseDirection = false;  // fire, not rain
+  EVERY_N_SECONDS(120) {
     if (gPal == gPalHeat) {
       gPal = gPalBlue;
     } else {
       gPal = gPalHeat;
     }
-  
   }
-  
+  fire18();
+}
+
+void rain18Change() {
+  gReverseDirection = true;
+  EVERY_N_SECONDS(120) {
+    if (gPal == gPalHeat) {
+      gPal = gPalBlue;
+    } else {
+      gPal = gPalHeat;
+    }
+  }
+  fire18();
+}
+
+
+void fire18() {
+
+  // Add entropy to random number generator; we use a lot of it.
+  random16_add_entropy( random());
+
+  // Fourth, the most sophisticated: this one sets up a new palette every
+  // time through the loop, based on a hue that changes every time.
+  // The palette is a gradient from black, to a dark color based on the hue,
+  // to a light color based on the hue, to white.
+  //
+  //   static uint8_t hue = 0;
+  //   hue++;
+  //   CRGB darkcolor  = CHSV(hue,255,192); // pure hue, three-quarters brightness
+  //   CRGB lightcolor = CHSV(hue,128,255); // half 'whitened', full brightness
+  //   gPal = CRGBPalette16( CRGB::Black, darkcolor, lightcolor, CRGB::White);
+
+  boolean cooldown = false;
+
+  EVERY_N_SECONDS(SECONDS_PER_COOLDOWN_DELTA) {
+    adjCooling(cooldown);
+  }
+  EVERY_N_SECONDS(SECONDS_PER_SPARKING_DELTA) {
+    adjSparking(cooldown);
+  }
+
+  EVERY_N_SECONDS(SECONDS_HEAT_COOL_CYCLE) {
+    cooldown = !cooldown;
+  }
+
+  fire18petals();
+  fire6spars();
+}
+
+void fire18petals()
+{
   Fire2012WithPalette(); // run simulation frame, using palette colors
-  
+
   // mirror and blur the other side
-  leds(AVG_LEDS_PER_PETAL/2, AVG_LEDS_PER_PETAL-1) = leds(AVG_LEDS_PER_PETAL/2-1,0);
+  leds(AVG_LEDS_PER_PETAL / 2, AVG_LEDS_PER_PETAL - 1) = leds(AVG_LEDS_PER_PETAL / 2 - 1, 0);
 
   copyPetalToAll18();
 }
 
-void christmasSparkles() {
-  //"Background" color for non-sparkling pixels.
-  CRGB sparkleBgColor = CHSV(50, 30, 40);  // dim white
-  //CRGB sparkleBgColor = CHSV(96, 200, 30);  // dim green
-  
-  EVERY_N_MILLISECONDS(40){
-    if( random8() < 60 ) {  // How much to sparkle!  Higher number is more.
-      pick = random16(AVG_LEDS_PER_PETAL);
-      if (ledsData[pick][3] == 0 ) {
-        ledsData[pick][3] = 35;  // Used to tag pixel as sparkling
-        uint8_t randomPick = random8(5);
-        if (randomPick == 0) {
-          ledsData[pick][0] = 178;   // sparkle hue (blue)
-          ledsData[pick][1] = 244;  // sparkle saturation
-          ledsData[pick][2] = 210;  // sparkle value
-        }
-        if (randomPick == 1) {
-          ledsData[pick][0] = 10;  // sparkle hue (red)
-          ledsData[pick][1] = 255;  // sparkle saturation
-          ledsData[pick][2] = 240;  // sparkle value
-        }
-        if (randomPick == 2) {
-          ledsData[pick][0] = 0;  // sparkle hue (white-ish)
-          ledsData[pick][1] = 25;  // sparkle saturation
-          ledsData[pick][2] = 255;  // sparkle value
-        }
-        if (randomPick == 3) {
-          ledsData[pick][0] = 35;   // sparkle hue (orange)
-          ledsData[pick][1] = 235;  // sparkle saturation
-          ledsData[pick][2] = 245;  // sparkle value
-        }
-        if (randomPick == 4) {
-          ledsData[pick][0] = 190;  // sparkle hue (purple)
-          ledsData[pick][1] = 255;  // sparkle saturation
-          ledsData[pick][2] = 238;  // sparkle value
-        }
-        leds[pick] = CHSV(ledsData[pick][0], ledsData[pick][1], ledsData[pick][2]);
-      }
-    }
-    for (uint16_t i=0; i < AVG_LEDS_PER_PETAL; i++) {
-      if (ledsData[i][3] == 0) {  // if not sparkling, set to "back ground" color
-        leds[i] = sparkleBgColor;
-      } else {
-        CHSV hsv = rgb2hsv_approximate(leds[i]);  // Used to get approximate Hue
-        EVERY_N_MILLISECONDS(38) { ledsData[i][0] = hsv.hue - 1; }  // slightly shift hue
-        ledsData[i][2] = scale8(ledsData[i][2], 245);  // slowly darken
-        leds[i] = CHSV(ledsData[i][0], ledsData[i][1], ledsData[i][2]);
-        ledsData[i][3] = ledsData[i][3] - 1;  // countdown sparkle tag
-      }
+void fire6spars()
+{
+  Fire2012WithPaletteForSpars(0); // run simulation frame, using palette colors
+  copyToAllSpars();
+}
+
+void sparToAudio() {
+  if (audioActive) {
+    for (int i = 0; i < SPARS_PER_ROW; i++) {
+      int level = normalizeFrequency150(frequencyValues[i]);
+      fill_solid(sparLeds[i], AVG_LEDS_PER_SPAR, CRGB::Black);  // black
+      fill_solid(sparLeds[i], level, CHSV( gHue , 200, (level/2) + 127));
     }
   }
-  // Mirror to all
-  copyPetalToAll18();
-}//end christmasSparkles
+}
 
 
-//---------------------------------------------------------------
-void christmasSparklesRG() {  // Red and Green only
-  //"Background" color for non-sparkling pixels.  Can be set to black for no bg color.
-  CRGB sparkleBgColor = CHSV(0, 0, 0);  // black
-  //CRGB sparkleBgColor = CHSV(50, 30, 30);  // dim white
- 
-  EVERY_N_MILLISECONDS(40){
-    if( random8() < 110 ) {  // How much to sparkle!  Higher number is more.
-      pick = random16(AVG_LEDS_PER_PETAL);
-      if (ledsData[pick][3] == 0 ) {
-        ledsData[pick][3] = 65;  // Used to tag pixel as sparkling
-        uint8_t randomPick = random8(2);
-        if (randomPick == 0) {
-          ledsData[pick][0] = 16;  // sparkle hue (red)
-          ledsData[pick][1] = 253;  // sparkle saturation
-          ledsData[pick][2] = 242;  // sparkle value
-        }
-        if (randomPick == 1) {
-          ledsData[pick][0] = 96;   // sparkle hue (green)
-          ledsData[pick][1] = 230;  // sparkle saturation
-          ledsData[pick][2] = 255;  // sparkle value
-        }
-        leds[pick] = CHSV(ledsData[pick][0], ledsData[pick][1], ledsData[pick][2]);
-      }
-    }
-    for (uint16_t i=0; i < AVG_LEDS_PER_PETAL; i++) {
-      if (ledsData[i][3] == 0) {  // if not sparkling, set to "back ground" color
-        leds[i] = sparkleBgColor;
-      } else {
-        CHSV hsv = rgb2hsv_approximate(leds[i]);  // Used to get approximate Hue
-        EVERY_N_MILLISECONDS(50) { ledsData[i][0] = hsv.hue - 1; }  // slightly shift hue
-        ledsData[i][2] = scale8(ledsData[i][2], 253);  // slowly darken
-        leds[i] = CHSV(ledsData[i][0], ledsData[i][1], ledsData[i][2]);
-        ledsData[i][3] = ledsData[i][3] - 1;  // countdown sparkle tag
-      }
-    }
-  }
-  // Mirror to all
-  copyPetalToAll18();
-}//end christmasSparklesRG
-
-
-//---------------------------------------------------------------
-void christmasSparklesBP() {  // Blues and Purple only
-  //"Background" color for non-sparkling pixels.
-  CRGB sparkleBgColor = CHSV(96, 185, 30);  // green
-  
-  EVERY_N_MILLISECONDS(40){
-    if( random8() < 170 ) {  // How much to sparkle!  Higher number is more.
-      pick = random16(AVG_LEDS_PER_PETAL);
-      if (ledsData[pick][3] == 0 ) {
-        ledsData[pick][3] = 20;  // Used to tag pixel as sparkling
-        uint8_t randomPick = random8(3);
-        if (randomPick == 0) {
-          ledsData[pick][0] = 165;   // sparkle hue (blue)
-          ledsData[pick][1] = 180;  // sparkle saturation
-          ledsData[pick][2] = 230;  // sparkle value
-        }
-        if (randomPick == 1) {
-          ledsData[pick][0] = 200;  // sparkle hue (pink-light-purple)
-          ledsData[pick][1] = 170;  // sparkle saturation
-          ledsData[pick][2] = 240;  // sparkle value
-        }
-        if (randomPick == 2) {
-          ledsData[pick][0] = 130;  // sparkle hue (light blue)
-          ledsData[pick][1] = 200;  // sparkle saturation
-          ledsData[pick][2] = 255;  // sparkle value
-        }
-        leds[pick] = CHSV(ledsData[pick][0], ledsData[pick][1], ledsData[pick][2]);
-      }
-    }
-    for (uint16_t i=0; i < AVG_LEDS_PER_PETAL; i++) {
-      if (ledsData[i][3] == 0) {  // if not sparkling, set to "back ground" color
-        leds[i] = sparkleBgColor;
-      } else {
-        CHSV hsv = rgb2hsv_approximate(leds[i]);  // Used to get approximate Hue
-        EVERY_N_MILLISECONDS(20) { ledsData[i][0] = hsv.hue - 1; }  // slightly shift hue
-        ledsData[i][2] = scale8(ledsData[i][2], 242);  // slowly darken
-        leds[i] = CHSV(ledsData[i][0], ledsData[i][1], ledsData[i][2]);
-        ledsData[i][3] = ledsData[i][3] - 1;  // countdown sparkle tag
-      }
-    }
-  }
-  // Mirror to all
-  copyPetalToAll18();
-}//end christmasSparklesBP
-
-
-uint8_t lightningFrequency = 50;                                       // controls the interval between strikes
-uint8_t flashes = 8;                                          //the upper limit of flashes per strike
-unsigned int dimmer = 1;
-
-uint8_t lightningStart;                                             // Starting location of a flash
-uint8_t lightningLen;                                               // Length of a flash
-
-void lightning() {
-  
-  lightningStart = random8(AVG_LEDS_PER_RING);                               // Determine starting location of flash
-  lightningLen = random8(AVG_LEDS_PER_RING-lightningStart);                        // Determine length of flash (not to go beyond NUM_LEDS-1)
-  
-  for (int flashCounter = 0; flashCounter < random8(3,flashes); flashCounter++) {
-    if(flashCounter == 0) dimmer = 5;                         // the brightness of the leader is scaled down by a factor of 5
-    else dimmer = random8(1,3);                               // return strokes are brighter than the leader
-    
-    fill_solid(leds+lightningStart,lightningLen,CHSV(255, 0, 255/dimmer));
-    mirrorImageRingToAll3();
-    FastLED.show();                       // Show a section of LED's
-    delay(random8(4,10));                                     // each flash only lasts 4-10 milliseconds
-    fill_solid(leds+lightningStart,lightningLen,CHSV(255,0,0));           // Clear the section of LED's
-    mirrorImageRingToAll3();
-    FastLED.show();
-    
-    if (flashCounter == 0) delay (150);                       // longer delay until next flash after the leader
-    
-    delay(50+random8(100));                                   // shorter delay between strokes  
-  } // for()
-  
-  delay(random8(lightningFrequency)*100);                              // delay between strikes
-  
-  
-} // lightning()

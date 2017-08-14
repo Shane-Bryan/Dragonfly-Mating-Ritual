@@ -18,7 +18,7 @@ const int NUM_LEDS_PETAL_RING_1 = 900;
 const int NUM_LEDS_PETAL_RING_2 = 900;
 
 #define TOTAL_LEDS    2700
-#define AVG_LEDS_PETAL 150
+#define AVG_LEDS_PER_PETAL 150
 
 #define BRIGHTNESS  240
 #define FRAMES_PER_SECOND 300
@@ -138,8 +138,19 @@ void setup() {
 // Looks best on a high-density LED setup (60+ pixels/meter).
 //
 
-void loop()
+void loop() {
+  fire18();
+  
+  
+  FastLED.show(); // display this frame
+}
+
+void fire18()
 {
+  
+  // insert a delay to keep the framerate modest
+  FastLED.delay(1000 / FRAMES_PER_SECOND);
+  
   // Add entropy to random number generator; we use a lot of it.
   random16_add_entropy( random());
 
@@ -171,15 +182,12 @@ void loop()
   Fire2012WithPalette(); // run simulation frame, using palette colors
   
   // mirror and blur the other side
-  leds(AVG_LEDS_PETAL/2, AVG_LEDS_PETAL-1) = leds(AVG_LEDS_PETAL/2-1,0);
+  leds(AVG_LEDS_PER_PETAL/2, AVG_LEDS_PER_PETAL-1) = leds(AVG_LEDS_PER_PETAL/2-1,0);
 
   // mirror on all 18 petals
   for (int i = 1; i < 18; i++) {
-    leds( i * AVG_LEDS_PETAL, ((i + 1) *AVG_LEDS_PETAL) -1) = leds( (i -1) * AVG_LEDS_PETAL, (i * AVG_LEDS_PETAL) -1 );
+    leds( i * AVG_LEDS_PER_PETAL, ((i + 1) *AVG_LEDS_PER_PETAL) -1) = leds( (i -1) * AVG_LEDS_PER_PETAL, (i * AVG_LEDS_PER_PETAL) -1 );
   }
-  
-  FastLED.show(); // display this frame
-  FastLED.delay(1000 / FRAMES_PER_SECOND);
 }
 
 void adjCooling(boolean cooldown) {
@@ -209,15 +217,15 @@ void adjSparking(boolean cooldown) {
 }
 
 // Array of temperature readings at each simulation cell
-static byte heat[AVG_LEDS_PETAL/2];
+static byte heat[AVG_LEDS_PER_PETAL/2];
 
 void Fire2012WithPalette()
 {
-   int numLeds = AVG_LEDS_PETAL/2;  // we're going to mirror this from either end symmetrically
+   int numLeds = AVG_LEDS_PER_PETAL/2;  // we're going to mirror this from either end symmetrically
 
   // Step 1.  Cool down every cell a little
     for( int i = 0; i < numLeds; i++) {
-      heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / AVG_LEDS_PETAL) + 2));
+      heat[i] = qsub8( heat[i],  random8(0, ((cooling * 10) / AVG_LEDS_PER_PETAL) + 2));
     }
   
     // Step 2.  Heat from each cell drifts 'up' and diffuses a little

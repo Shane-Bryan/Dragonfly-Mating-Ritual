@@ -71,6 +71,7 @@ CRGBPalette16 gPalBlue;
 CRGBPalette16 gPalForest;
 CRGBPalette16 gPalRainbow;
 CRGBPalette16 gPalLava;
+CRGBPalette16 gPalWedding;
 
 #define INITIAL_COOLING  75
 #define MIN_COOLING  40
@@ -208,6 +209,29 @@ void setup() {
     CRGB::White};
 
   gPalLava = MyLava_p;
+  
+  const TProgmemRGBPalette16 MyWedding_p FL_PROGMEM = {
+    CRGB::Black,
+    CRGB::Purple,
+    CRGB::LavenderBlush,
+    CRGB::Lavender,
+
+    CRGB::MediumPurple,
+    CRGB::MediumOrchid,
+    CRGB::PowderBlue,
+    CRGB::Thistle,
+    
+    CRGB::LavenderBlush,
+    CRGB::Lavender,
+    CRGB::CornflowerBlue,
+    CRGB::Orchid,
+
+    CRGB::CornflowerBlue,
+    CRGB::LightBlue,
+    CRGB::Ivory,
+    CRGB::White};
+
+  gPalWedding = MyWedding_p;
 }
 
 int normalizeFrequency150(int freqVal) {
@@ -442,6 +466,18 @@ void addGlitter( fract8 chanceOfGlitter, int multiple)
   }
 }
 
+void addWeddingGlitter( fract8 chanceOfGlitter, int multiple)
+{
+  if ( random8() < chanceOfGlitter) {
+    for (int i = 0; i < multiple; i++) {
+      leds[ random16(TOTAL_LEDS) ] += CRGB::MediumOrchid;
+      leds[ random16(TOTAL_LEDS) ] += CRGB::Lavender;
+      leds[ random16(TOTAL_LEDS) ] += CRGB::Aqua;
+      leds[ random16(TOTAL_LEDS) ] += CRGB::CornflowerBlue;
+    }
+  }
+}
+
 
 // *************************
 // List of patterns to cycle through.  Each is defined as a separate function below. They can appear more than once, which gives us a really
@@ -451,6 +487,8 @@ void addGlitter( fract8 chanceOfGlitter, int multiple)
 //
 typedef void (*SimplePatternList[])();
 SimplePatternList gPatterns = {
+  rain18Wedding,
+  fire18Wedding,
   fire18Heat,
   fire18Lava,
   bpmGlitter, // rocking rainbow ok for  bit, needs variation - audio?
@@ -705,6 +743,20 @@ void rain18Blue() {
   gReverseDirection = true;
   gPal = gPalBlue;
   fire18();
+}
+
+void fire18Wedding() {
+  gReverseDirection = false;  // fire, not rain
+  gPal = gPalWedding;
+  fire18();
+  addWeddingGlitter(80, 12);
+}
+
+void rain18Wedding() {
+  gReverseDirection = true;
+  gPal = gPalWedding;
+  fire18();
+  addWeddingGlitter(80, 12);
 }
 
 void fire18Rainbow() {

@@ -56,7 +56,7 @@ CRGBArray<AVG_LEDS_PER_SPAR> sparLeds[SPARS_PER_ROW];
 #define LED_TYPE    DOTSTAR
 #define COLOR_ORDER BGR
 
-#define BRIGHTNESS          220
+#define BRIGHTNESS          230
 #define FRAMES_PER_SECOND  120
 
 
